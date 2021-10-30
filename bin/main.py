@@ -21,8 +21,7 @@ def main():
         symbol = msg["s"]
         price = msg["p"]
         quantity = msg["q"]
-        print(("SYMBOL: {} PRICE: {} QUANTITY: {}").format(
-            symbol, price, quantity))
+        
 
     twm.start_trade_socket(callback=handle_socket_message, symbol=symbol)
 
