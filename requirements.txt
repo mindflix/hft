@@ -1,4 +1,3 @@
 python-binance
-TA-Lib
+python-dotenv
 numpy
-websocket_client

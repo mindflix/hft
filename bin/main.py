@@ -1,6 +1,5 @@
 from binance import ThreadedWebsocketManager
 import os
-import time
 from dotenv import load_dotenv
 
 
