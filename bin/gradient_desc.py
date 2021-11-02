@@ -7,12 +7,12 @@ Elle représente l'erreur globale de notre réseau de neurones.
 
 
 # Cost Function
-def fonction(X, Y):
+def cost_function(X, Y):
     return X*np.exp(-X**2-Y**2)+(X**2+Y**2)/20
 
 
 # Gradient de la Cost function
-def gradient_fonction(X, Y):
+def gradient(X, Y):
     g_x = np.exp(-X**2-Y**2)+X*-2*X*np.exp(-X**2-Y**2)+X/10
     g_y = -2*Y*X*np.exp(-X**2-Y**2)+Y/10
     return g_x, g_y
@@ -33,7 +33,7 @@ correction_y = 0
 i = 0
 
 while i < 401:
-    g_x, g_y = gradient_fonction(x, y)
+    g_x, g_y = gradient(x, y)
     correction_x = lr2*correction_x-lr*g_x
     x = x+correction_x
     correction_y = lr2*correction_y-lr*g_y
