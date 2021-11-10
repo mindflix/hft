@@ -1,51 +1,23 @@
-from json.decoder import JSONDecodeError
-from binance import ThreadedWebsocketManager
+from time import time, ctime
+from binance import Client
 import os
-import json
 from dotenv import load_dotenv
+from handle_data import save_historical_klines, create_graph
 
 
 load_dotenv()
-
 API_KEY = os.getenv('API_KEY')
-SECRET_KEY = os.getenv('SECRET_KEY')
-TRADES_JSON = "data/trades.json"
-
-trades_data = []
-
-
-def load_data():
-    with open(TRADES_JSON, "r") as json_file:
-        try:
-            old_trades = json.load(json_file)
-            trades_data = old_trades
-        except JSONDecodeError:
-            pass
-
-
-def write_data():
-    with open(TRADES_JSON, "w") as json_file:
-        json.dump(trades_data, json_file, indent=4)
+API_SECRET = os.getenv('SECRET_KEY')
 
 
 def main():
+    symbols = ['BTCUSDT']
 
-    symbol = 'BTCUSDT'
+    client = Client(API_KEY, API_SECRET)
 
-    load_data()
+    save_historical_klines(client, symbols, "30m", "1 Nov 2021")
 
-    twm = ThreadedWebsocketManager(api_key=API_KEY, api_secret=SECRET_KEY)
-    # start is required to initialise its internal loop
-    twm.start()
-
-    def handle_socket_message(msg):
-        if (msg):
-            trades_data.append(msg)
-            write_data()
-
-    twm.start_trade_socket(callback=handle_socket_message, symbol=symbol)
-
-    twm.join()
+    create_graph(symbols[0], "30m")
 
 
 if __name__ == "__main__":
