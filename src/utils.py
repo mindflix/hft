@@ -10,9 +10,16 @@ def ensure_file(file_path):
     Path(file_path).touch(exist_ok=True)
 
 
-def format_date_float(time):
-    return datetime.strptime(time, "%d %b %Y").timestamp()
+def format_utc_float(utc):
+    utc_list = str(utc).split()
+    if (len(utc_list) == 1):
+        return datetime.strptime(utc, '%Y-%m-%d').timestamp()
+    if (len(utc_list) == 2):
+        if ("." in utc_list[1]):
+            return datetime.strptime(utc, '%Y-%m-%d %H:%M:%S.%f').timestamp()
+        else:
+            return datetime.strptime(utc, '%Y-%m-%d %H:%M:%S').timestamp()
 
 
-def format_float_date(float):
-    return datetime.fromtimestamp(float).strftime("%e %b %Y")
+def format_float_utc(float):
+    return str(datetime.utcfromtimestamp(float))
