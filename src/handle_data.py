@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 from utils import ensure_dir
 
 
-def save_historical_klines(client, symbols, interval, start_time, limit=1000):
+def save_historical_klines(client, symbols, interval, start_time, end_time=None, limit=1000):
     """Gets klines for symbols.
 
         :param client: Client authentification
@@ -20,7 +20,7 @@ def save_historical_klines(client, symbols, interval, start_time, limit=1000):
         print(f'\n-> Gathering {symbol} data...')
 
         data = client.get_historical_klines(
-            symbol=symbol, interval=interval, start_str=start_time, limit=limit)
+            symbol=symbol, interval=interval, start_str=start_time, end_str=end_time, limit=limit)
 
         for line in data:
             del line[6:]
@@ -30,19 +30,22 @@ def save_historical_klines(client, symbols, interval, start_time, limit=1000):
         temp_df = pd.DataFrame(data, columns=cols)
 
         ensure_dir("data/{}".format(symbol))
-        address = "data/{0}/{0}_{1}.csv".format(symbol, interval)
+
+        address = "data/{0}/{0}_{1}_{2}_{3}.csv".format(
+            symbol, interval, start_time.replace(" ", ""), end_time.replace(" ", ""))
         temp_df.to_csv(address, index=False)
 
         print(f'-> Store {symbol} data to {address}')
 
 
-def create_graph(symbol, interval):
+def create_graph(symbol, interval, start_time, end_time):
     """Show a plotly graph for a  single symbol.
 
         :param symbols: required e.g NNB-0AD_BNB
         :param interval: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
     """
-    path = "data/{0}/{0}_{1}.csv".format(symbol, interval)
+    path = "data/{0}/{0}_{1}_{2}_{3}.csv".format(
+        symbol, interval, start_time.replace(" ", ""), end_time.replace(" ", ""))
     stocks = pd.read_csv(path)
     date = []
 
