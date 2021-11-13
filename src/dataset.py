@@ -1,108 +1,91 @@
 import pandas as pd
-import os
-from datetime import datetime
-import plotly.express as px
 import plotly.graph_objects as go
-import tqdm
-from utils import ensure_dir, ensure_file, format_float_utc, format_utc_float
+from tqdm import tqdm
+import sqlalchemy as sal
+from utils import get_fromtimestamp_ms, get_timestamp_ms
 
 
-def get_dataset(client, symbols, interval, start_time, end_time=None, epochs=10):
-
-    start_time = format_utc_float(start_time)
-    if (end_time == None):
-        end_time = datetime.now().timestamp()
-    else:
-        end_time = format_utc_float(end_time)
-
-    increment = ((end_time - start_time) / epochs)
-
-    data = []
-
-    for epoch in tqdm(range(epochs * len(symbols)), desc="-> Gathering Data"):
-        end_time = start_time + increment
-        save_historical_klines(client, symbols, interval,
-                               format_float_utc(start_time), format_float_utc(end_time))
-        data.append([format_float_utc(start_time).split()[0],
-                    format_float_utc(end_time).split()[0]])
-        start_time = end_time
-        epoch += 1
-
-    df = pd.DataFrame(data, columns=["Start", "End"])
-
-    print(df)
-
-    ensure_file("data/datasets.json")
-    if (os.stat("data/datasets.json").st_size != 0):
-        df_temp = pd.read_json("data/datasets.json")
-        df = pd.concat([df_temp, df], ignore_index=True)
-
-    df.to_json("data/datasets.json", indent=4)
-
-    print("-> Save dataset infos in data/datasets.json")
-
-    return df
-
-
-def save_historical_klines(client, symbols, interval, start_time, end_time=None, limit=1000):
-    """Gets klines for symbols.
+class DatasetDownloader:
+    """Class that extract and manage the datasets for Inputs of Neural Network
 
         :param client: Client authentification
-        :param symbols: required e.g NNB-0AD_BNB
-        :param interval: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
-        :param limit:
-        :param start_time:
-        :param end_time:
         """
 
-    for symbol in symbols:
+    def __init__(self, client):
+        self.client = client
+        self.db = sal.create_engine("mysql://root:poplpo@localhost/datasets")
 
-        data = client.get_historical_klines(
-            symbol=symbol, interval=interval, start_str=start_time, end_str=end_time, limit=limit)
+    def create_dataset(self, symbol, timeframe, start, end=None, epochs=1):
+        """Create a dataset and save it to SQL db.
+
+            :param symbol: required e.g BTCUSDT
+            :param timeframe: required 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
+            :param start: required "2021-10-10 00:00:00"
+            :param end: "2021-11-10 00:00:00"
+            :param epochs: integrer
+            """
+        start, end = get_timestamp_ms(start, end)
+        dataset_infos = []
+        diff = ((end - start) / epochs)
+        for epoch in tqdm(range(epochs), desc="-> Gathering Data for {}".format(symbol)):
+            end = start + diff
+            dataset_infos.append([symbol, timeframe, start, end])
+            self.__fetch_klines(symbol, timeframe, start, end)
+            start = end
+            epoch += 1
+
+        df_dataset_infos = pd.DataFrame(
+            dataset_infos, columns=["symbol", "timeframe", "start", "end"])
+        df_dataset_infos.to_sql(
+            "infos", self.db, if_exists="append", index=False)
+        print(f"-> Save {symbol} ({timeframe}) dataset in SQL")
+
+    def __fetch_klines(self, symbol, timeframe, start, end=None, limit=5000):
+        """Fetch klines from Binance API.
+
+            :param symbol: required e.g BTCUSDT
+            :param timeframe: required 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
+            :param start: required timestamp in ms
+            :param end: timestamp in ms
+            """
+
+        data = self.client.get_klines(
+            symbol=symbol, interval=timeframe, startTime=int(start), endTime=int(end), limit=limit)
 
         for line in data:
             del line[6:]
 
-        cols = ["Time", 'Open', 'High', 'Low', 'Close', 'Volume']
+        cols = ['time', 'open', 'high', 'low', 'close', 'volume']
 
-        temp_df = pd.DataFrame(data, columns=cols)
+        df = pd.DataFrame(data, columns=cols)
+        df.to_sql(symbol + "_" + timeframe, self.db,
+                  if_exists="append", index=False)
 
-        ensure_dir("data/{}".format(symbol))
-        if (end_time == None):
-            end_time = datetime.utcnow()
+    def get_graph(self, symbol):
+        """Show a plotly graph for a  single symbol.
 
-        address = "data/{0}/{0}_{1}_({2}_{3}).csv".format(
-            symbol, interval, str(start_time).split()[0], str(end_time).split()[0])
-        temp_df.to_csv(address, index=False)
+            :param symbols: required e.g NNB-0AD_BNB
+            :param timeframe: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
+        """
 
+        stocks = pd.read_sql(symbol, self.db)
 
-def create_graph(symbol, interval, start_time, end_time):
-    """Show a plotly graph for a  single symbol.
+        t_list = []
 
-        :param symbols: required e.g NNB-0AD_BNB
-        :param interval: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
-    """
-    path = "data/{0}/{0}_{1}_({2}_{3}).csv".format(
-        symbol, interval, str(start_time).split()[0], str(end_time).split()[0])
+        for t in stocks['time']:
 
-    stocks = pd.read_csv(path)
+            t_list.append(get_fromtimestamp_ms(t))
 
-    date = []
+        candlestick = go.Figure(data=[go.Candlestick(x=t_list,
+                                                     open=stocks["open"],
+                                                     high=stocks["high"],
+                                                     low=stocks["low"],
+                                                     close=stocks["close"],
+                                                     )])
+        candlestick.update_layout(
+            xaxis_rangeslider_visible=False, title=symbol)
+        candlestick.update_xaxes(title_text="Date")
+        candlestick.update_yaxes(title_text="Price", tickprefix="$")
+        candlestick.show()
 
-    for t in stocks['Time']:
-        date.append(format_float_utc(t/1000))
-
-    candlestick = go.Figure(data=[go.Candlestick(x=date,
-                                                 open=stocks["Open"],
-                                                 high=stocks["High"],
-                                                 low=stocks["Low"],
-                                                 close=stocks["Close"],
-                                                 )])
-    candlestick.update_layout(
-        xaxis_rangeslider_visible=False, title=symbol)
-    candlestick.update_xaxes(title_text="Date")
-    candlestick.update_yaxes(title_text="Price", tickprefix="$")
-
-    candlestick.show()
-
-    print(stocks)
+        print(stocks)

@@ -10,16 +10,32 @@ def ensure_file(file_path):
     Path(file_path).touch(exist_ok=True)
 
 
-def format_utc_float(utc):
-    utc_list = str(utc).split()
-    if (len(utc_list) == 1):
-        return datetime.strptime(utc, '%Y-%m-%d').timestamp()
-    if (len(utc_list) == 2):
-        if ("." in utc_list[1]):
-            return datetime.strptime(utc, '%Y-%m-%d %H:%M:%S.%f').timestamp()
+def get_timestamp_ms(*args):
+    tps_ms = []
+    for arg in args:
+        if (type(arg) == int or type(arg) == float):
+            tp = arg
+        elif (arg == None):
+            tp = datetime.now().timestamp()
         else:
-            return datetime.strptime(utc, '%Y-%m-%d %H:%M:%S').timestamp()
+            date = str(arg).split()
+            if (len(date) == 1):
+                tp = datetime.strptime(arg, '%Y-%m-%d').timestamp()
+            elif (len(date) == 2 and "." not in date[1]):
+                tp = datetime.strptime(arg, '%Y-%m-%d %H:%M:%S').timestamp()
+            else:
+                tp = datetime.strptime(arg, '%Y-%m-%d %H:%M:%S.%f').timestamp()
+        tp *= 1000
+        tps_ms.append(tp)
+
+    if (len(args) == 1):
+        return tps_ms.pop()
+    else:
+        return tuple(tps_ms)
 
 
-def format_float_utc(float):
-    return str(datetime.utcfromtimestamp(float))
+def get_fromtimestamp_ms(float):
+    if (float == None):
+        return datetime.now()
+    else:
+        return datetime.fromtimestamp(float/1000)
