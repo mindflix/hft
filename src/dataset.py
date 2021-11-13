@@ -39,6 +39,7 @@ class DatasetDownloader:
         df_dataset_infos.to_sql(
             "infos", self.db, if_exists="append", index=False)
         print(f"-> Save {symbol} ({timeframe}) dataset in SQL")
+        print("yolo")
 
     def __fetch_klines(self, symbol, timeframe, start, end=None, limit=5000):
         """Fetch klines from Binance API.
